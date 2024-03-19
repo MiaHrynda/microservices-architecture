@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        logicalFilePath="src/main/resources/db/changelog/song_service_changelog.xml"
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+    <preConditions>
+        <dbms type="mysql,h2"/>
+    </preConditions>
+
+    <changeSet id="1-sh" author="Solomiia Hrynda">
+        <comment>Create table</comment>
+
+        <createTable tableName="storage">
+            <column name="id" type="int(10)" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="storage_type" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="bucket" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="path" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="storage" columnNames="storage_type,bucket"/>
+    </changeSet>
+
+    <changeSet id="2-sh" author="Solomiia Hrynda">
+        <comment>Create table</comment>
+        <insert tableName="storage">
+            <column name="storage_type" value="PERMANENT"/>
+            <column name="bucket" value="resource-service-metadata"/>
+            <column name="path" value="permanent"/>
+        </insert>
+        <insert tableName="storage">
+            <column name="storage_type" value="STAGING"/>
+            <column name="bucket" value="resource-service-metadata"/>
+            <column name="path" value="staging"/>
+        </insert>
+    </changeSet>
+</databaseChangeLog>

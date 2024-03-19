@@ -1,0 +1,261 @@
+version: "3.8"
+
+networks:
+  microservices-architecture-network:
+    driver: bridge
+
+volumes:
+  elasticsearch_data:
+    driver: local
+
+services:
+  prometheus:
+    image: prom/prometheus
+    command:
+      - --enable-feature=exemplar-storage
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - "./monitoring/prometheus:/etc/prometheus/"
+    networks:
+      - microservices-architecture-network
+    ports:
+      - 9090:9090
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    volumes:
+        - ./monitoring/grafana:/var/lib/grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: true
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: true
+    ports:
+    - "3000:3000"
+    networks:
+      - microservices-architecture-network
+      
+  elasticsearch:
+    image: elasticsearch:8.12.0
+    environment:
+      xpack.security.enabled: false
+      bootstrap.memory_lock: true
+      discovery.type: single-node
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - 9200:9200
+      - 9300:9300
+    stdin_open: true
+    tty: true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "50"
+    networks:
+      - microservices-architecture-network
+
+  kibana:
+    image: kibana:8.12.0
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - 5601:5601
+    links:
+      - elasticsearch:elasticsearch
+    depends_on:
+      - elasticsearch
+    stdin_open: true
+    tty: true
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "50"
+    networks:
+      - microservices-architecture-network
+
+  logstash:
+    image: logstash:8.12.0
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - ./monitoring/logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    ports:
+      - 5044:5044
+    links:
+      - elasticsearch:elasticsearch
+    depends_on:
+      - elasticsearch
+    stdin_open: true
+    tty: true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "50"
+    networks:
+      - microservices-architecture-network
+
+  zipkin:
+    image: openzipkin/zipkin
+    container_name: zipkin
+    ports:
+      - '9411:9411'
+    networks:
+      - microservices-architecture-network
+
+  mysqldb:
+    image: mysql:8.0
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - MYSQL_ROOT_PASSWORD=$MYSQLDB_PASSWORD
+    ports:
+      - "3307:3306"
+    networks:
+      - microservices-architecture-network
+
+  artemis:
+    image: apache/activemq-artemis:2.31.1
+    ports:
+      - "8161:8161"  # Web console
+      - "61616:61616" # OpenWire for messaging
+    networks:
+      - microservices-architecture-network
+
+  eureka-discovery-service:
+    build:
+      context: ./eureka-discovery-service
+      dockerfile: Dockerfile
+    ports:
+      - "8761:8761"
+    networks:
+      - microservices-architecture-network
+    environment:
+      spring.profiles.active: docker
+
+  api-gateway:
+    depends_on:
+      - eureka-discovery-service
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    networks:
+      - microservices-architecture-network
+    environment:
+      spring.profiles.active: docker
+      eureka.client.serviceUrl.defaultZone": $EUREKA_DISCOVERY_PATH
+
+  storage-service-app:
+    depends_on:
+      - mysqldb
+      - api-gateway
+      - eureka-discovery-service
+    restart: always
+    build:
+      context: ./storage-service
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8097:8080"
+    networks:
+      - microservices-architecture-network
+    environment:
+      spring.profiles.active: docker
+      spring.datasource.url: "jdbc:mysql://$MYSQLDB_HOST:$MYSQLDB_PORT/$MYSQLDB_STORAGE_SERVICE_DB_NAME?characterEncoding=UTF-8&autoReconnect=true&autoReconnectForPools=true&useSSL=false&createDatabaseIfNotExist=true&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+      spring.datasource.username: $MYSQLDB_USER
+      spring.datasource.password: $MYSQLDB_PASSWORD
+      eureka.client.serviceUrl.defaultZone: $EUREKA_DISCOVERY_PATH
+
+  resource-service-app:
+    depends_on:
+      - eureka-discovery-service
+      - logstash
+      - storage-service-app
+      - mysqldb
+      - artemis
+      - api-gateway
+    restart: always
+    build:
+      context: ./resource-service
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8090:8080"
+    networks:
+      - microservices-architecture-network
+    environment:
+      spring.profiles.active: docker
+      spring.datasource.url: "jdbc:mysql://$MYSQLDB_HOST:$MYSQLDB_PORT/$MYSQLDB_RESOURCE_SERVICE_DB_NAME?characterEncoding=UTF-8&autoReconnect=true&autoReconnectForPools=true&useSSL=false&createDatabaseIfNotExist=true&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+      spring.datasource.username: $MYSQLDB_USER
+      spring.datasource.password: $MYSQLDB_PASSWORD
+      eureka.client.serviceUrl.defaultZone: $EUREKA_DISCOVERY_PATH
+      spring.artemis.broker-url: $ARTEMIS_PATH
+      spring.artemis.user: $ARTEMIS_USERNAME
+      spring.artemis.password: $ARTEMIS_PASSWORD
+      amazonProperties.accessKey: $AWS_ACCESS_KEY
+      amazonProperties.secretKey: $AWS_SECRET_KEY
+      amazonProperties.bucketName: $AWS_BUCKET_NAME
+      amazonProperties.retries.max.number: $AWS_RETRIES_MAX_NUMBER
+      amazonProperties.retries.delay: $AWS_RETRIES_DELAY
+    labels:
+      collect_logs_with_filebeat: true
+      decode_log_event_to_json_object: true
+
+  song-service-app:
+    depends_on:
+      - eureka-discovery-service
+      - mysqldb
+      - api-gateway
+    restart: always
+    build:
+      context: ./song-service
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8091"
+      - "8092"
+    deploy:
+      replicas: 2
+    networks:
+      - microservices-architecture-network
+    environment:
+      spring.profiles.active: docker
+      spring.datasource.url": "jdbc:mysql://$MYSQLDB_HOST:$MYSQLDB_PORT/$MYSQLDB_SONG_SERVICE_DB_NAME?characterEncoding=UTF-8&autoReconnect=true&autoReconnectForPools=true&useSSL=false&createDatabaseIfNotExist=true&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+      spring.datasource.username: $MYSQLDB_USER
+      spring.datasource.password: $MYSQLDB_PASSWORD
+      eureka.client.serviceUrl.defaultZone: $EUREKA_DISCOVERY_PATH
+
+  resource-processor-app:
+    depends_on:
+      - eureka-discovery-service
+      - artemis
+    restart: always
+    build:
+      context: ./resource-processor
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8082:8080"
+    environment:
+      spring.profiles.active: docker
+    networks:
+      - microservices-architecture-network

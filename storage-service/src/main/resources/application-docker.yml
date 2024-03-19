@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: storage-service
+  liquibase:
+    enabled: true
+    change-log: classpath:/db/changelog/storage_service_changelog.xml
+  datasource:
+    url: jdbc:mysql://mysql:3306/storage_service_metadata?characterEncoding=UTF-8&autoReconnect=true&autoReconnectForPools=true&useSSL=false&createDatabaseIfNotExist=true&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://eureka-discovery-service:8761/eureka
+
+logging:
+  config: classpath:logback-spring.xml
+  level.root: INFO
+  com.netflix.eureka: OFF
+  com.netflix.discovery: OFF
+  org.springframework.security: TRACE
+
+management:
+  tracing:
+    sampling.probability: 1.0
+  endpoint:
+    metrics.enabled: true
+    prometheus.enabled: true
+  endpoints.web.exposure.include:
+    - prometheus
+  metrics.export:
+    prometheus.enabled: true
+  zipkin.tracing.endpoint: http://zipkin:9411/api/v2/spans

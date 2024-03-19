@@ -1,0 +1,82 @@
+server:
+  port: 8091
+
+spring:
+  liquibase:
+    enabled: true
+    change-log: classpath:/db/changelog/resource_service_changelog.xml
+  datasource:
+    url: jdbc:mysql://localhost:3306/resource_service_metadata?characterEncoding=UTF-8&autoReconnect=true&autoReconnectForPools=true&useSSL=false&createDatabaseIfNotExist=true&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    password: 1234
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  artemis:
+    broker-url: (tcp://localhost:61616)?retryInterval=500&retryIntervalMultiplier=1.0&reconnectAttempts=-1
+    user: root
+    password: 1234
+  jpa:
+    hibernate:
+      ddl-auto: none
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+    mvc.pathmatch.matching-strategy: ANT_PATH_MATCHER
+
+storage-service:
+  url: http://localhost:8080/storage-service-app/storages
+
+jms:
+  queue:
+    resourceUpload: resourceUpload
+    resourceProcessing: resourceProcessing
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka
+
+amazonProperties:
+  accessKey: "*****"
+  secretKey: "*****"
+  bucketName: "resource-service-metadata"
+  retries:
+    max.number: 3
+    delay: 15 # in seconds
+
+resilience4j.circuitbreaker:
+  instances:
+    getStorages:
+      registerHealthIndicator: false
+      ringBufferSizeInClosedState: 5
+      ringBufferSizeInHalfOpenState: 4
+      waitDurationInOpenState: 15s
+      failureRateThreshold: 50
+      recordExceptions:
+        - org.springframework.web.client.HttpServerErrorException
+        - java.io.IOException
+        - java.util.concurrent.TimeoutException
+        - org.springframework.web.client.ResourceAccessException
+        - org.springframework.web.client.HttpClientErrorException
+      ignoreExceptions:
+
+logging:
+  config: classpath:logback-spring.xml
+  level.root: INFO
+  com.example.resourceservice: DEBUG
+  com.netflix.eureka: OFF
+  com.netflix.discovery: OFF
+
+management:
+  tracing:
+    sampling.probability: 1.0
+  endpoint:
+    metrics.enabled: true
+    prometheus.enabled: true
+  endpoints.web.exposure.include:
+    - prometheus
+  metrics.export:
+    prometheus.enabled: true
+  zipkin.tracing.endpoint: http://localhost:9411/api/v2/spans

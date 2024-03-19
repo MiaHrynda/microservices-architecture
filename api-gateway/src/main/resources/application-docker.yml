@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: resource-service-app
+          uri: lb://resource-service
+          predicates:
+            - Path=/resource-service-app/**
+          filters:
+            - RewritePath=/resource-service-app/(?<path>.*), /$\{path}
+        - id: song-service-app
+          uri: lb://song-service
+          predicates:
+            - Path=/song-service-app/**
+          filters:
+            - RewritePath=/song-service-app/(?<path>.*), /$\{path}
+        - id: storage-service-app
+          uri: lb://storage-service
+          predicates:
+            - Path=/storage-service-app/**
+          filters:
+            - RewritePath=/storage-service-app/(?<path>.*), /$\{path}
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://eureka-discovery-service:8761/eureka/
+
+management:
+  tracing:
+    sampling.probability: 1.0
+  endpoint:
+    metrics.enabled: true
+    prometheus.enabled: true
+  endpoints.web.exposure.include:
+    - prometheus
+  metrics.export:
+    prometheus.enabled: true
+  zipkin.tracing.endpoint: http://zipkin:9411/api/v2/spans

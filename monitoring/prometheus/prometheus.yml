@@ -1,0 +1,45 @@
+global:
+  scrape_interval: 2s
+  evaluation_interval: 2s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['prometheus:9090']
+  - job_name: 'resource-service-app'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['resource-service-app:8080']
+        labels:
+          application: 'resource-service'
+  - job_name: 'song-service-app'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['song-service-app:8080']
+        labels:
+          application: 'song service'
+  - job_name: 'storage-service-app'
+    scrape_interval: 2s
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['storage-service-app:8080']
+        labels:
+          application: "storage-service"
+  - job_name: 'resource-processor-app'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['resource-processor-app:8080']
+        labels:
+          application: 'resource-processor'
+  - job_name: 'api-gateway'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['api-gateway:8080']
+        labels:
+          application: 'api-gateway'
+  - job_name: 'eureka-discovery-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['eureka-discovery-service:8761']
+        labels:
+          application: 'eureka-discovery-service'

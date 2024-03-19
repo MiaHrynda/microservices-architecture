@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: resource-processor
+  artemis:
+    broker-url: (tcp://artemis:61616)?retryInterval=500&retryIntervalMultiplier=1.0&reconnectAttempts=-1
+    user: artemis
+    password: artemis
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://eureka-discovery-service:8761/eureka
+
+jms:
+  retry:
+    backoff:
+      multiplier: 2
+      initialInterval: 5000
+      maxInterval: 30000
+  subscription:
+    resourceUpload: resourceUpload
+  queue:
+    resourceProcessing: resourceProcessing
+
+
+song-service:
+  url: http://api-gateway:8080/song-service-app/songs
+resource-service:
+  url: http://api-gateway:8080/resource-service-app/resources
+
+management:
+  tracing:
+    sampling.probability: 1.0
+  endpoint:
+    metrics.enabled: true
+    prometheus.enabled: true
+  endpoints.web.exposure.include:
+    - prometheus
+  metrics.export:
+    prometheus.enabled: true
+  zipkin.tracing.endpoint: http://zipkin:9411/api/v2/spans
+
+logging:
+  level.root: INFO
+  com.netflix.eureka: OFF
+  com.netflix.discovery: OFF
